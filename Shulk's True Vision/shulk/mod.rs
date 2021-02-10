@@ -3,10 +3,11 @@ use smash::lua2cpp::L2CFighterCommon;
 use smash::app::lua_bind::*;
 use acmd::{acmd,acmd_func};
 use smash::hash40;
-use smash::app::*;
 use smash::app::BattleObjectModuleAccessor;
 use smash::app::lua_bind::EffectModule;
-use crate::custom::{TIME_SLOW_EFFECT_VECTOR, TIME_SLOW_EFFECT_HASH};
+
+pub static mut TIME_SLOW_EFFECT_VECTOR: smash::phx::Vector3f = smash::phx::Vector3f {x:-3.0,y:3.0,z:0.0};
+pub const TIME_SLOW_EFFECT_HASH: u64 = smash::hash40("sys_sp_flash");
 
 pub unsafe fn entry_id(module_accessor: &mut BattleObjectModuleAccessor) -> usize {
     let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
@@ -18,7 +19,7 @@ static mut SPECIAL_LW_TIMER : [i16; 8] = [-1; 8];
 static mut DAMAGE_TAKEN : [f32; 8] = [0.0; 8];
 
 #[skyline::hook(replace=smash::app::lua_bind::WorkModule::is_enable_transition_term)]
-pub unsafe fn is_enable_transition_term_replace(module_accessor: &mut BattleObjectModuleAccessor, term: i32) -> bool {
+pub unsafe fn shulk_is_enable_transition_term_replace(module_accessor: &mut BattleObjectModuleAccessor, term: i32) -> bool {
     let fighter_kind = smash::app::utility::get_kind(module_accessor);
     let ret = original!()(module_accessor,term);
     if fighter_kind == *FIGHTER_KIND_SHULK {
@@ -43,7 +44,7 @@ pub fn reset_vars(fighter: &mut L2CFighterCommon) {
     unsafe {
         let lua_state = fighter.lua_state_agent;
         let module_accessor = smash::app::sv_system::battle_object_module_accessor(lua_state);
-        if StatusModule::status_kind(module_accessor) == *FIGHTER_STATUS_KIND_DEAD {
+        if StatusModule::status_kind(module_accessor) == *FIGHTER_STATUS_KIND_DEAD || StatusModule::status_kind(module_accessor) == *FIGHTER_STATUS_KIND_ENTRY {
             SPECIAL_LW[entry_id(module_accessor)] = false;
             SPECIAL_LW_TIMER[entry_id(module_accessor)] = -1;
             println!("Reset all vars!");
@@ -155,5 +156,5 @@ pub fn install() {
         special_lw_check,
         damage_check
     );
-    skyline::install_hook!(is_enable_transition_term_replace);
+    skyline::install_hook!(shulk_is_enable_transition_term_replace);
 }
