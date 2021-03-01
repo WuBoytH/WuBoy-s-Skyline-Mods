@@ -2,9 +2,9 @@
 #![feature(proc_macro_hygiene)]
 #![feature(asm)]
 
-mod shulk;
+mod lucina;
 
-#[skyline::main(name = "shulk vision burst")]
+#[skyline::main(name = "yu_narukami")]
 pub fn main() {
-    shulk::install();
+    lucina::install();
 }

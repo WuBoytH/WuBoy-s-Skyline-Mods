@@ -1,14 +1,15 @@
+use smash::phx::Hash40;
+use smash::lua2cpp::L2CAgentBase;
+use smash::app::sv_animcmd;
 use smash::lib::lua_const::*;
-use smash::lua2cpp::L2CFighterCommon;
 use smash::app::lua_bind::*;
-use acmd::{acmd,acmd_func};
-use smash::hash40;
+use smash_script::*;
+use smash_script::macros;
+use smash::phx::Vector3f;
 use smash::app::BattleObjectModuleAccessor;
 use smash::app::lua_bind::EffectModule;
-use smash::phx::Vector3f;
 
 pub static mut TIME_SLOW_EFFECT_VECTOR: smash::phx::Vector3f = smash::phx::Vector3f {x:-3.0,y:3.0,z:0.0};
-pub const TIME_SLOW_EFFECT_HASH: u64 = smash::hash40("sys_sp_flash");
 
 pub unsafe fn entry_id(module_accessor: &mut BattleObjectModuleAccessor) -> usize {
     let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
@@ -41,125 +42,133 @@ pub unsafe fn shulk_is_enable_transition_term_replace(module_accessor: &mut Batt
     }
 }
 
-pub fn reset_vars(fighter: &mut L2CFighterCommon) {
-    unsafe {
-        let lua_state = fighter.lua_state_agent;
-        let module_accessor = smash::app::sv_system::battle_object_module_accessor(lua_state);
-        if StatusModule::status_kind(module_accessor) == *FIGHTER_STATUS_KIND_DEAD || StatusModule::status_kind(module_accessor) == *FIGHTER_STATUS_KIND_ENTRY {
-            SPECIAL_LW[entry_id(module_accessor)] = false;
-            SPECIAL_LW_TIMER[entry_id(module_accessor)] = -1;
-            println!("Reset all vars!");
-        }
-        else {
-        }
-    }
-}
+#[fighter_frame( agent = FIGHTER_KIND_SHULK )]
+unsafe fn shulk_frame(fighter: &mut L2CAgentBase) {
+    let boma = smash::app::sv_system::battle_object_module_accessor(fighter.lua_state_agent);
+    let entry_id = WorkModule::get_int(boma, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
 
-pub fn damage_check(fighter: &mut L2CFighterCommon) {
-    unsafe {
-        let lua_state = fighter.lua_state_agent;
-        let module_accessor = smash::app::sv_system::battle_object_module_accessor(lua_state);
-        let fighter_kind = smash::app::utility::get_kind(module_accessor);
-        if fighter_kind == *FIGHTER_KIND_SHULK {
-            if StopModule::is_damage(module_accessor) {
-                DAMAGE_TAKEN[entry_id(module_accessor)] = WorkModule::get_float(module_accessor,*FIGHTER_INSTANCE_WORK_ID_FLOAT_SUCCEED_HIT_DAMAGE);
-                if ControlModule::check_button_trigger(module_accessor, *CONTROL_PAD_BUTTON_GUARD) {
-                    if SPECIAL_LW[entry_id(module_accessor)] == false {
-                        let launch_speed = KineticModule::get_sum_speed_x(module_accessor,*KINETIC_ENERGY_RESERVE_ATTRIBUTE_DAMAGE);
-                        let facing_dirn = PostureModule::lr(module_accessor);
-                        if launch_speed > 0.0 && facing_dirn > 0.0 {
-                            PostureModule::reverse_lr(module_accessor);
-                        }
-                        else if launch_speed < 0.0 && facing_dirn < 0.0 {
-                            PostureModule::reverse_lr(module_accessor);
-                        }
-                        else{
+    if entry_id < 8 {
+        
+        // Reset Vars
 
-                        }
-                        DamageModule::add_damage(module_accessor, DAMAGE_TAKEN[entry_id(module_accessor)] * -0.5, 0);
-                        KineticModule::change_kinetic(module_accessor,*FIGHTER_KINETIC_TYPE_RESET);
-                        StatusModule::change_status_request_from_script(module_accessor, *FIGHTER_SHULK_STATUS_KIND_SPECIAL_LW_HIT, true);
-                        SPECIAL_LW[entry_id(module_accessor)] = true;
-                        SPECIAL_LW_TIMER[entry_id(module_accessor)] = 3600;
-                        println!("SPECIAL_LW set to true, timer set to 3600!");
+        if StatusModule::status_kind(boma) == *FIGHTER_STATUS_KIND_REBIRTH || smash::app::sv_information::is_ready_go() == false {
+            SPECIAL_LW[entry_id] = false;
+            SPECIAL_LW_TIMER[entry_id] = -1;
+        }
+
+        // Damage Check
+
+        if StopModule::is_damage(boma) {
+            DAMAGE_TAKEN[entry_id] = WorkModule::get_float(boma,*FIGHTER_INSTANCE_WORK_ID_FLOAT_SUCCEED_HIT_DAMAGE);
+            if ControlModule::check_button_trigger(boma, *CONTROL_PAD_BUTTON_GUARD) {
+                if SPECIAL_LW[entry_id] == false {
+                    let launch_speed = KineticModule::get_sum_speed_x(boma,*KINETIC_ENERGY_RESERVE_ATTRIBUTE_DAMAGE);
+                    let facing_dirn = PostureModule::lr(boma);
+                    if launch_speed > 0.0 && facing_dirn > 0.0 {
+                        PostureModule::reverse_lr(boma);
                     }
+                    else if launch_speed < 0.0 && facing_dirn < 0.0 {
+                        PostureModule::reverse_lr(boma);
+                    }
+                    DamageModule::add_damage(boma, DAMAGE_TAKEN[entry_id] * -0.5, 0);
+                    KineticModule::change_kinetic(boma,*FIGHTER_KINETIC_TYPE_RESET);
+                    StatusModule::change_status_request_from_script(boma, *FIGHTER_SHULK_STATUS_KIND_SPECIAL_LW_HIT, true);
+                    WorkModule::set_float(boma, 0.0, *FIGHTER_SHULK_INSTANCE_WORK_ID_FLOAT_SPECIAL_LW_ATTACK_POWER);
+                    WorkModule::set_int(boma, *FIGHTER_SHULK_MONAD_TYPE_DEFAULT, *FIGHTER_SHULK_INSTANCE_WORK_ID_INT_SPECIAL_N_TYPE);
+                    WorkModule::set_int(boma, *FIGHTER_SHULK_MONAD_TYPE_DEFAULT, *FIGHTER_SHULK_INSTANCE_WORK_ID_INT_SPECIAL_N_TYPE_SELECT);
+                    SPECIAL_LW[entry_id] = true;
+                    SPECIAL_LW_TIMER[entry_id] = 3600;
                 }
             }
         }
-    }
-}
 
-pub fn special_lw_check(fighter: &mut L2CFighterCommon) {
-    unsafe {
-        let lua_state = fighter.lua_state_agent;
-        let module_accessor = smash::app::sv_system::battle_object_module_accessor(lua_state);
-        let fighter_kind = smash::app::utility::get_kind(module_accessor);
-        if fighter_kind == *FIGHTER_KIND_SHULK {
-            if StatusModule::status_kind(module_accessor) == *FIGHTER_SHULK_STATUS_KIND_SPECIAL_LW_HIT {
-                acmd!(lua_state, {
-                    SLOW_OPPONENT(20, 60)
-                });
-                EffectModule::req_on_joint(module_accessor, smash::phx::Hash40::new_raw(TIME_SLOW_EFFECT_HASH), smash::phx::Hash40::new("head"), &TIME_SLOW_EFFECT_VECTOR, &TIME_SLOW_EFFECT_VECTOR, 1.0, &TIME_SLOW_EFFECT_VECTOR, &TIME_SLOW_EFFECT_VECTOR, false, 0, 0, 0);
-            }
-            if SPECIAL_LW_TIMER[entry_id(module_accessor)] > 0 {
-                SPECIAL_LW_TIMER[entry_id(module_accessor)] = SPECIAL_LW_TIMER[entry_id(module_accessor)] - 1;
-                println!("Timer decreased to {}", SPECIAL_LW_TIMER[entry_id(module_accessor)]);
-            }
-            else if SPECIAL_LW_TIMER[entry_id(module_accessor)] == 0 {
-                SPECIAL_LW_TIMER[entry_id(module_accessor)] = -1;
-                let pos: Vector3f = Vector3f{x: 0.0, y: 13.0, z: 0.0};
-                let rot: Vector3f = Vector3f{x: 0.0, y: 90.0, z: 0.0};
-                let countereff: u32 = EffectModule::req_follow(module_accessor, smash::phx::Hash40{hash: hash40("sys_counter_flash")}, smash::phx::Hash40{hash: hash40("top")}, &pos, &rot, 1.0, false, 0, 0, 0, 0, 0, false, false) as u32;
-                EffectModule::set_rgb(module_accessor, countereff, 0.0, 5.0, 5.0);
-                println!("SPECIAL_LW set to false!");
-            }
-            else{
-                SPECIAL_LW[entry_id(module_accessor)] = false;
-            }
+        // Special Lw Check
+
+        if StatusModule::status_kind(boma) == *FIGHTER_SHULK_STATUS_KIND_SPECIAL_LW_HIT {
+            EffectModule::req_on_joint(boma, Hash40::new("sys_sp_flash"), Hash40::new("head"), &TIME_SLOW_EFFECT_VECTOR, &TIME_SLOW_EFFECT_VECTOR, 1.0, &TIME_SLOW_EFFECT_VECTOR, &TIME_SLOW_EFFECT_VECTOR, false, 0, 0, 0);
+        }
+        if SPECIAL_LW_TIMER[entry_id] > 0 {
+            SPECIAL_LW_TIMER[entry_id] = SPECIAL_LW_TIMER[entry_id] - 1;
+        }
+        else if SPECIAL_LW_TIMER[entry_id] == 0 {
+            SPECIAL_LW_TIMER[entry_id] = -1;
+            let pos: Vector3f = Vector3f{x: 0.0, y: 13.0, z: 0.0};
+            let rot: Vector3f = Vector3f{x: 0.0, y: 90.0, z: 0.0};
+            let countereff: u32 = EffectModule::req_follow(boma, Hash40::new("sys_counter_flash"), Hash40::new("top"), &pos, &rot, 1.0, false, 0, 0, 0, 0, 0, false, false) as u32;
+            EffectModule::set_rgb(boma, countereff, 0.0, 5.0, 5.0);
+        }
+        else{
+            SPECIAL_LW[entry_id] = false;
         }
     }
 }
 
-#[acmd_func(
-    battle_object_category = BATTLE_OBJECT_CATEGORY_FIGHTER, 
-    battle_object_kind = FIGHTER_KIND_SHULK,
-    animation = "attack_11",
-    animcmd = "game_attack11")]
-pub fn shulk_jab1(fighter: &mut L2CFighterCommon) {
-    acmd!({
-        frame(Frame=5)
-        if(is_excute){
-            ATTACK(ID=0, Part=0, Bone=hash40("top"), Damage=2.0, Angle=361, KBG=10, FKB=0, BKB=35, Size=2.8, X=0.0, Y=9.0, Z=2.0, X2=LUA_VOID, Y2=LUA_VOID, Z2=LUA_VOID, Hitlag=1.4, SDI=1.0, Clang_Rebound=ATTACK_SETOFF_KIND_ON, FacingRestrict=ATTACK_LR_CHECK_F, SetWeight=false, ShieldDamage=0, Trip=0.0, Rehit=0, Reflectable=false, Absorbable=false, Flinchless=false, DisableHitlag=false, Direct_Hitbox=true, Ground_or_Air=COLLISION_SITUATION_MASK_GA, Hitbits=COLLISION_CATEGORY_MASK_ALL, CollisionPart=COLLISION_PART_MASK_ALL, FriendlyFire=false, Effect=hash40("collision_attr_normal"), SFXLevel=ATTACK_SOUND_LEVEL_S, SFXType=COLLISION_SOUND_ATTR_PUNCH, Type=ATTACK_REGION_PUNCH)
-            ATTACK(ID=1, Part=0, Bone=hash40("top"), Damage=2.0, Angle=361, KBG=10, FKB=0, BKB=35, Size=2.8, X=0.0, Y=9.0, Z=4.5, X2=LUA_VOID, Y2=LUA_VOID, Z2=LUA_VOID, Hitlag=1.4, SDI=1.0, Clang_Rebound=ATTACK_SETOFF_KIND_ON, FacingRestrict=ATTACK_LR_CHECK_F, SetWeight=false, ShieldDamage=0, Trip=0.0, Rehit=0, Reflectable=false, Absorbable=false, Flinchless=false, DisableHitlag=false, Direct_Hitbox=true, Ground_or_Air=COLLISION_SITUATION_MASK_GA, Hitbits=COLLISION_CATEGORY_MASK_ALL, CollisionPart=COLLISION_PART_MASK_ALL, FriendlyFire=false, Effect=hash40("collision_attr_normal"), SFXLevel=ATTACK_SOUND_LEVEL_S, SFXType=COLLISION_SOUND_ATTR_PUNCH, Type=ATTACK_REGION_PUNCH)
-            ATTACK(ID=2, Part=0, Bone=hash40("top"), Damage=2.0, Angle=180, KBG=10, FKB=0, BKB=25, Size=3.0, X=0.0, Y=9.0, Z=7.0, X2=LUA_VOID, Y2=LUA_VOID, Z2=LUA_VOID, Hitlag=1.4, SDI=1.0, Clang_Rebound=ATTACK_SETOFF_KIND_ON, FacingRestrict=ATTACK_LR_CHECK_F, SetWeight=false, ShieldDamage=0, Trip=0.0, Rehit=0, Reflectable=false, Absorbable=false, Flinchless=false, DisableHitlag=false, Direct_Hitbox=true, Ground_or_Air=COLLISION_SITUATION_MASK_GA, Hitbits=COLLISION_CATEGORY_MASK_FIGHTER, CollisionPart=COLLISION_PART_MASK_ALL, FriendlyFire=false, Effect=hash40("collision_attr_normal"), SFXLevel=ATTACK_SOUND_LEVEL_S, SFXType=COLLISION_SOUND_ATTR_PUNCH, Type=ATTACK_REGION_PUNCH)
-            ATTACK(ID=3, Part=0, Bone=hash40("top"), Damage=2.0, Angle=361, KBG=10, FKB=0, BKB=25, Size=3.0, X=0.0, Y=9.0, Z=7.0, X2=LUA_VOID, Y2=LUA_VOID, Z2=LUA_VOID, Hitlag=1.4, SDI=1.0, Clang_Rebound=ATTACK_SETOFF_KIND_ON, FacingRestrict=ATTACK_LR_CHECK_F, SetWeight=false, ShieldDamage=0, Trip=0.0, Rehit=0, Reflectable=false, Absorbable=false, Flinchless=false, DisableHitlag=false, Direct_Hitbox=true, Ground_or_Air=COLLISION_SITUATION_MASK_GA, Hitbits=COLLISION_CATEGORY_MASK_ALL, CollisionPart=COLLISION_PART_MASK_ALL, FriendlyFire=false, Effect=hash40("collision_attr_normal"), SFXLevel=ATTACK_SOUND_LEVEL_S, SFXType=COLLISION_SOUND_ATTR_PUNCH, Type=ATTACK_REGION_PUNCH)
-            AttackModule::set_add_reaction_frame(ID=0, Frames=2.0, Unk=false)
-            AttackModule::set_add_reaction_frame(ID=1, Frames=2.0, Unk=false)
-            AttackModule::set_add_reaction_frame(ID=2, Frames=2.0, Unk=false)
-        }
-        wait(Frames=1)
-        if(is_excute){
-            AttackModule::clear_all()
-        }
-        frame(Frame=10)
-        if(is_excute){
-            WorkModule::on_flag(Flag=FIGHTER_STATUS_ATTACK_FLAG_ENABLE_COMBO)
-        }
-        frame(Frame=14)
-        if(is_excute){
-            WorkModule::on_flag(Flag=FIGHTER_STATUS_ATTACK_FLAG_ENABLE_RESTART)
-        }
-    });
+#[script( agent = "shulk", scripts = ["game_speciallwattack", "game_specialairlwattack"], category = ACMD_GAME )]
+unsafe fn shulk_counterattack(fighter: &mut L2CAgentBase) {
+    let lua_state = fighter.lua_state_agent;
+    let boma = smash::app::sv_system::battle_object_module_accessor(lua_state);
+    let entry_id = WorkModule::get_int(boma, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
+    sv_animcmd::frame(lua_state, 8.0);
+    let dmg: f32;
+    if SPECIAL_LW[entry_id] == false {
+        dmg = 10.0;
+    }
+    else {
+        dmg = 8.0;
+    }
+    if macros::is_excute(fighter) {
+        smash_script::macros::ATTACK(fighter, 0, 0, Hash40::new("top"), dmg, 50, 80, 0, 70, 12.0, 0.0, 10.5, 28.0, Some(0.0), Some(10.5), Some(20.5), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_F, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        smash_script::macros::ATTACK(fighter, 1, 0, Hash40::new("top"), dmg - 1.0, 50, 80, 0, 70, 7.0, 0.0, 10.5, 33.0, Some(0.0), Some(10.5), Some(9.5), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_F, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        AttackModule::set_force_reaction(boma, 0, true, false);
+        AttackModule::set_force_reaction(boma, 1, true, false);
+    }
+    sv_animcmd::wait(lua_state, 2.0);
+    if macros::is_excute(fighter) {
+        smash_script::macros::ATTACK(fighter, 0, 0, Hash40::new("top"), dmg, 50, 80, 0, 70, 12.0, 0.0, 10.5, 25.0, Some(0.0), Some(10.5), Some(17.5), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_F, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        smash_script::macros::ATTACK(fighter, 1, 0, Hash40::new("top"), dmg -1.0, 50, 80, 0, 70, 7.0, 0.0, 10.5, 30.0, Some(0.0), Some(10.5), Some(6.5), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_F, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        AttackModule::set_force_reaction(boma, 0, true, false);
+        AttackModule::set_force_reaction(boma, 1, true, false);
+    }
+    sv_animcmd::wait(lua_state, 1.0);
+    if macros::is_excute(fighter) {
+        AttackModule::clear_all(boma);
+    }
+    macros::FT_MOTION_RATE(fighter, 0.8);
+}
+
+#[script( agent = "shulk", script = "game_speciallwf", category = ACMD_GAME )]
+unsafe fn shulk_counterforward(fighter: &mut L2CAgentBase) {
+    let lua_state = fighter.lua_state_agent;
+    let boma = smash::app::sv_system::battle_object_module_accessor(lua_state);
+    let entry_id = WorkModule::get_int(boma, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
+    macros::FT_MOTION_RATE(fighter, 0.8);
+    sv_animcmd::frame(lua_state, 20.0);
+    let dmg: f32;
+    if SPECIAL_LW[entry_id] == false {
+        dmg = 13.0;
+    }
+    else {
+        dmg = 8.0;
+    }
+    if macros::is_excute(fighter) {
+        smash_script::macros::ATTACK(fighter, 0, 0, Hash40::new("top"), dmg, 50, 90, 0, 70, 11.0, 0.0, 9.0, -24.5, Some(0.0), Some(9.0), Some(-15.0), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_B, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        smash_script::macros::ATTACK(fighter, 1, 0, Hash40::new("top"), dmg - 1.0, 50, 90, 0, 70, 7.0, 0.0, 9.0, -28.5, Some(0.0), Some(9.0), Some(-3.0), 2.0, 1.0, *ATTACK_SETOFF_KIND_OFF, *ATTACK_LR_CHECK_B, false, 0, 0.0, 0, false, false, false, false, true, *COLLISION_SITUATION_MASK_GA, *COLLISION_CATEGORY_MASK_ALL, *COLLISION_PART_MASK_ALL, false, Hash40::new("collision_attr_cutup"), *ATTACK_SOUND_LEVEL_L, *COLLISION_SOUND_ATTR_CUTUP, *ATTACK_REGION_SWORD);
+        AttackModule::set_force_reaction(boma, 0, true, false);
+        AttackModule::set_force_reaction(boma, 1, true, false);
+    }
+    sv_animcmd::wait(lua_state, 2.0);
+    if macros::is_excute(fighter) {
+        AttackModule::clear_all(boma);
+    }
 }
 
 pub fn install() {
-    acmd::add_hooks!(
-        shulk_jab1
+    smash_script::replace_fighter_frames!(
+        shulk_frame
     );
-    acmd::add_custom_hooks!(
-        reset_vars,
-        special_lw_check,
-        damage_check
+    smash_script::replace_scripts!(
+        shulk_counterattack,
+        shulk_counterforward
     );
     skyline::install_hook!(shulk_is_enable_transition_term_replace);
 }
