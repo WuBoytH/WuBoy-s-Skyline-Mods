@@ -10,7 +10,7 @@ use smash::app::FighterManager;
 static mut NOTIFY_LOG_EVENT_COLLISION_HIT_OFFSET : usize = 0x675A20;
 
 mod ryu;
-use crate::ryu::{SECRET_SENSATION, OPPONENT_POS, OPPONENT_GA}; // Imports some of Ryu's variables into lib.rs
+use crate::ryu::{SECRET_SENSATION, OPPONENT_X, OPPONENT_Y, CAMERA}; // Imports some of Ryu's variables into lib.rs
 
 #[skyline::hook(offset = NOTIFY_LOG_EVENT_COLLISION_HIT_OFFSET)]
 pub unsafe fn notify_log_event_collision_hit_replace(
@@ -31,14 +31,14 @@ move_type_again: bool) -> u64 {
         || MotionModule::motion_kind(defender_boma) == smash::hash40("appeal_hi_l"))
         && MotionModule::frame(defender_boma) <= 30.0 {
             if utility::get_category(&mut *attacker_boma) == *BATTLE_OBJECT_CATEGORY_FIGHTER {
-                OPPONENT_POS[d_entry_id] = PostureModule::pos_2d(attacker_boma); // Grabs the attacker's position and stores it in a public variable.
-                OPPONENT_GA[d_entry_id] = StatusModule::situation_kind(attacker_boma); // Grab's the attacker's current state (ground/air) and stores it in a public variable.
+                OPPONENT_X[d_entry_id] = PostureModule::pos_x(attacker_boma); // Grabs the attacker's position and stores it in a public variable.
+                OPPONENT_Y[d_entry_id] = PostureModule::pos_y(attacker_boma);
                 SECRET_SENSATION[d_entry_id] = true; // Sets the variable to True, so Ryu's mod.rs can see it an start working.
             }
             else if utility::get_category(&mut *attacker_boma) == *BATTLE_OBJECT_CATEGORY_WEAPON { // In FighterZ, countering a projectile put you behind the projectile's owner, so that's what this is for.
                 let oboma = smash::app::sv_battle_object::module_accessor((WorkModule::get_int(attacker_boma, *WEAPON_INSTANCE_WORK_ID_INT_LINK_OWNER)) as u32);
-                OPPONENT_POS[d_entry_id] = PostureModule::pos_2d(oboma);
-                OPPONENT_GA[d_entry_id] = StatusModule::situation_kind(oboma);
+                OPPONENT_X[d_entry_id] = PostureModule::pos_x(oboma);
+                OPPONENT_Y[d_entry_id] = PostureModule::pos_y(oboma);
                 SECRET_SENSATION[d_entry_id] = true;
             }
         }
@@ -53,7 +53,7 @@ pub unsafe fn is_enable_transition_term_replace(module_accessor: &mut BattleObje
     let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as usize;
     
     if fighter_kind == *FIGHTER_KIND_RYU && entry_id < 8 { // ***Theoretically*** disables any inputs from Ryu as he's Ultra Instincting.
-        if SECRET_SENSATION[entry_id] {
+        if CAMERA[entry_id] {
             return false;
         }
         else {
