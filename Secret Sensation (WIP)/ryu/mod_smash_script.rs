@@ -45,6 +45,13 @@ unsafe fn ryu_frame(fighter: &mut L2CAgentBase) {
             DamageModule::set_reaction_mul(boma, 0.0);
         }
 
+        // Reset Vars
+
+        if StatusModule::status_kind(boma) == *FIGHTER_STATUS_KIND_REBIRTH || smash::app::sv_information::is_ready_go() == false {
+            SECRET_SENSATION[entry_id] = false;
+            SEC_SEN_STATE[entry_id] = false;
+        }
+
         // Secret Sensation???
 
         if SECRET_SENSATION[entry_id] {
